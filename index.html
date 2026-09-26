@@ -273,6 +273,22 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 
 @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 .screen.active{animation:fadeIn .18s ease}
+
+/* ── DOCK CUSTOMIZATION ── */
+.more-title-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.more-title{margin-bottom:0!important}
+.customize-btn{font-size:11px;font-weight:600;color:var(--primary);background:none;border:none;cursor:pointer;padding:4px 8px;border-radius:8px;font-family:inherit;transition:background .15s}
+.customize-btn:hover{background:var(--primary-dim)}
+.more-item.drag-selected{outline:2px solid var(--primary);outline-offset:2px;background:var(--primary-dim)!important}
+.more-item.drag-hint{animation:dockPulse .8s ease infinite alternate}
+@keyframes dockPulse{from{opacity:1}to{opacity:.55}}
+.nav-item.drop-target{outline:2px dashed var(--primary);outline-offset:3px;border-radius:10px;background:var(--primary-dim)!important}
+.nav-item.edit-mode{animation:navWiggle .35s ease infinite alternate}
+@keyframes navWiggle{from{transform:rotate(-2deg)}to{transform:rotate(2deg)}}
+.dock-ghost{position:fixed;pointer-events:none;z-index:9999;display:flex;flex-direction:column;align-items:center;gap:6px;opacity:.85;transition:none}
+.dock-ghost .more-item-icon{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center}
+.dock-toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1A1D27;color:#94A3B8;font-size:12px;font-weight:500;padding:8px 16px;border-radius:20px;border:1px solid rgba(255,255,255,0.08);z-index:9998;pointer-events:none;opacity:0;transition:opacity .2s;white-space:nowrap}
+.dock-toast.show{opacity:1}
 </style>
 </head>
 <body>
@@ -890,70 +906,186 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 </div>
 
 <!-- ════════ BOTTOM NAV ════════ -->
-<nav class="bottom-nav">
-  <button class="nav-item active" onclick="navigate('oggi',this)">
-    <div class="nav-dot"></div>
-    <i data-lucide="home" class="nav-icon"></i><span>Oggi</span>
-  </button>
-  <button class="nav-item" onclick="navigate('pazienti',this)">
-    <div class="nav-dot"></div>
-    <i data-lucide="users" class="nav-icon"></i><span>Pazienti</span>
-  </button>
-  <button class="nav-item" onclick="navigate('studio',this)">
-    <div class="nav-dot"></div>
-    <i data-lucide="briefcase" class="nav-icon"></i><span>Studio</span>
-  </button>
-  <button class="nav-item" onclick="navigate('direzione',this)">
-    <div class="nav-dot"></div>
-    <i data-lucide="bar-chart-2" class="nav-icon"></i><span>Direzione</span>
-  </button>
-  <button class="nav-item" onclick="openMore()">
-    <i data-lucide="grid" class="nav-icon"></i><span>Altro</span>
-  </button>
-</nav>
+<nav class="bottom-nav" id="bottomNav"><!-- rendered by JS --></nav>
 
 <!-- ════════ MORE OVERLAY ════════ -->
 <div class="more-overlay" id="moreOverlay" onclick="closeMore(event)">
-  <div class="more-panel">
+  <div class="more-panel" id="morePanel">
     <div class="more-handle"></div>
-    <div class="more-title">Tutte le sezioni</div>
-    <div class="more-grid">
-      <button class="more-item" onclick="navigateMore('crm')">
-        <div class="more-item-icon" style="background:var(--success-dim);"><i data-lucide="contact" style="width:22px;height:22px;color:var(--success);"></i></div>
-        <span class="more-item-label">CRM</span>
-      </button>
-      <button class="more-item" onclick="navigateMore('agenda')">
-        <div class="more-item-icon" style="background:var(--primary-dim);"><i data-lucide="calendar" style="width:22px;height:22px;color:var(--primary);"></i></div>
-        <span class="more-item-label">Agenda</span>
-      </button>
-      <button class="more-item" onclick="navigateMore('comunicazione')">
-        <div class="more-item-icon" style="background:var(--warning-dim);"><i data-lucide="message-circle" style="width:22px;height:22px;color:var(--warning);"></i></div>
-        <span class="more-item-label" style="position:relative;">Comunicaz.<span style="position:absolute;top:-28px;right:-6px;background:var(--danger);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;">9</span></span>
-      </button>
-      <button class="more-item" onclick="navigateMore('report')">
-        <div class="more-item-icon" style="background:var(--purple-dim);"><i data-lucide="pie-chart" style="width:22px;height:22px;color:var(--purple);"></i></div>
-        <span class="more-item-label">Report</span>
-      </button>
-      <button class="more-item" onclick="navigateMore('impostazioni')">
-        <div class="more-item-icon" style="background:rgba(139,145,168,0.1);"><i data-lucide="settings" style="width:22px;height:22px;color:var(--text-muted);"></i></div>
-        <span class="more-item-label">Impostaz.</span>
-      </button>
+    <div class="more-title-row">
+      <div class="more-title">Tutte le sezioni</div>
+      <button class="customize-btn" id="customizeBtn" onclick="toggleCustomize()">Personalizza</button>
     </div>
+    <div class="more-grid" id="moreGrid"><!-- rendered by JS --></div>
   </div>
 </div>
+<div class="dock-toast" id="dockToast"></div>
 
 </div><!-- #app -->
 
 <script>
-// ── NAVIGATION ──
-const screens = document.querySelectorAll('.screen');
-const navItems = document.querySelectorAll('.nav-item');
+// ══════════════════════════════════════════
+// DOCK SYSTEM — data-driven navigation
+// ══════════════════════════════════════════
+const SECTIONS = {
+  oggi:          {label:'Oggi',       icon:'home',          navBg:null,                    navColor:'var(--primary)'},
+  pazienti:      {label:'Pazienti',   icon:'users',         navBg:null,                    navColor:'var(--primary)'},
+  studio:        {label:'Studio',     icon:'briefcase',     navBg:null,                    navColor:'var(--primary)'},
+  direzione:     {label:'Direzione',  icon:'bar-chart-2',   navBg:null,                    navColor:'var(--primary)'},
+  crm:           {label:'CRM',        icon:'contact',       navBg:'var(--success-dim)',     navColor:'var(--success)'},
+  agenda:        {label:'Agenda',     icon:'calendar',      navBg:'var(--primary-dim)',     navColor:'var(--primary)'},
+  comunicazione: {label:'Comunicaz.', icon:'message-circle',navBg:'var(--warning-dim)',    navColor:'var(--warning)', badge:9},
+  report:        {label:'Report',     icon:'pie-chart',     navBg:'var(--purple-dim)',     navColor:'var(--purple)'},
+  impostazioni:  {label:'Impostaz.',  icon:'settings',      navBg:'rgba(139,145,168,0.1)', navColor:'var(--text-muted)'},
+};
 
+const LS_KEY = 'pdc_nav_layout';
+function loadLayout() {
+  try { const s = localStorage.getItem(LS_KEY); if (s) return JSON.parse(s); } catch(e){}
+  return {bar:['oggi','pazienti','studio','direzione']};
+}
+function saveLayout(layout) {
+  try { localStorage.setItem(LS_KEY, JSON.stringify(layout)); } catch(e){}
+}
+
+let layout = loadLayout();
+let customizeMode = false;
+let pendingPanelId = null; // panel icon selected waiting for nav slot tap
+
+// ── RENDER NAV BAR ──
+function renderNav() {
+  const nav = document.getElementById('bottomNav');
+  nav.innerHTML = '';
+  layout.bar.forEach(id => {
+    const sec = SECTIONS[id];
+    const btn = document.createElement('button');
+    btn.className = 'nav-item';
+    btn.dataset.id = id;
+    if (customizeMode) btn.classList.add('edit-mode');
+    btn.innerHTML = \`<div class="nav-dot"></div><i data-lucide="\${sec.icon}" class="nav-icon"></i><span>\${sec.label}</span>\`;
+    btn.addEventListener('click', () => {
+      if (customizeMode && pendingPanelId) {
+        swapItem(pendingPanelId, id);
+        return;
+      }
+      if (!customizeMode) navigate(id, btn);
+    });
+    if (customizeMode) {
+      btn.classList.add('drop-target');
+    }
+    nav.appendChild(btn);
+  });
+  // Altro button (always last)
+  const altroBtn = document.createElement('button');
+  altroBtn.className = 'nav-item';
+  altroBtn.innerHTML = \`<i data-lucide="grid" class="nav-icon"></i><span>Altro</span>\`;
+  altroBtn.addEventListener('click', openMore);
+  nav.appendChild(altroBtn);
+}
+
+// ── RENDER MORE PANEL ──
+function renderPanel() {
+  const grid = document.getElementById('moreGrid');
+  grid.innerHTML = '';
+  const panelItems = Object.keys(SECTIONS).filter(id => !layout.bar.includes(id));
+  panelItems.forEach(id => {
+    const sec = SECTIONS[id];
+    const btn = document.createElement('button');
+    btn.className = 'more-item';
+    btn.dataset.id = id;
+    const badgeHtml = sec.badge ? \`<span style="position:absolute;top:-28px;right:-6px;background:var(--danger);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;">\${sec.badge}</span>\` : '';
+    btn.innerHTML = \`
+      <div class="more-item-icon" style="background:\${sec.navBg||'var(--surface-2)'}">
+        <i data-lucide="\${sec.icon}" style="width:22px;height:22px;color:\${sec.navColor};"></i>
+      </div>
+      <span class="more-item-label" style="position:relative;">\${sec.label}\${badgeHtml}</span>\`;
+    btn.addEventListener('click', () => {
+      if (customizeMode) {
+        selectPanelItem(id, btn);
+      } else {
+        navigateMore(id);
+      }
+    });
+    // Long-press drag support
+    addLongPress(btn, id);
+    grid.appendChild(btn);
+  });
+  lucide.createIcons();
+}
+
+// ── SWAP LOGIC ──
+function swapItem(panelId, navId) {
+  const navIdx = layout.bar.indexOf(navId);
+  if (navIdx === -1) return;
+  layout.bar[navIdx] = panelId;
+  saveLayout(layout);
+  pendingPanelId = null;
+  showToast(\`\${SECTIONS[panelId].label} spostato nella barra!\`);
+  renderNav();
+  renderPanel();
+  lucide.createIcons();
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('drop-target','edit-mode'));
+  customizeMode = false;
+  document.getElementById('customizeBtn').textContent = 'Personalizza';
+}
+
+function selectPanelItem(id, btn) {
+  if (pendingPanelId === id) {
+    // deselect
+    pendingPanelId = null;
+    document.querySelectorAll('.more-item').forEach(b => b.classList.remove('drag-selected','drag-hint'));
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('drop-target'));
+    showToast('Selezione annullata');
+    return;
+  }
+  pendingPanelId = id;
+  document.querySelectorAll('.more-item').forEach(b => b.classList.remove('drag-selected','drag-hint'));
+  btn.classList.add('drag-selected');
+  document.querySelectorAll('.more-item').forEach(b => { if(b !== btn) b.classList.add('drag-hint'); });
+  document.querySelectorAll('#bottomNav .nav-item').forEach(n => { if(!n.classList.contains('edit-mode')) n.classList.add('drop-target'); });
+  showToast(\`Tocca uno slot nella barra per \${SECTIONS[id].label}\`);
+}
+
+// ── LONG PRESS → select ──
+function addLongPress(el, id) {
+  let timer;
+  el.addEventListener('touchstart', e => {
+    timer = setTimeout(() => {
+      navigator.vibrate && navigator.vibrate(30);
+      if (!customizeMode) { customizeMode = true; renderNav(); }
+      selectPanelItem(id, el);
+    }, 500);
+  }, {passive:true});
+  el.addEventListener('touchend', () => clearTimeout(timer), {passive:true});
+  el.addEventListener('touchmove', () => clearTimeout(timer), {passive:true});
+}
+
+// ── TOAST ──
+function showToast(msg) {
+  const t = document.getElementById('dockToast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ── CUSTOMIZE TOGGLE ──
+function toggleCustomize() {
+  customizeMode = !customizeMode;
+  pendingPanelId = null;
+  document.getElementById('customizeBtn').textContent = customizeMode ? 'Fine' : 'Personalizza';
+  renderNav();
+  renderPanel();
+  if (customizeMode) showToast('Tieni premuto un'icona o toccala per spostarla');
+}
+
+// ── NAVIGATION (old API preserved) ──
 function navigate(id, btn) {
+  const screens = document.querySelectorAll('.screen');
   screens.forEach(s => s.classList.remove('active'));
-  navItems.forEach(n => n.classList.remove('active'));
+  document.getElementById('bottomNav').querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('screen-' + id).classList.add('active');
   if (btn) btn.classList.add('active');
+  closeMoreDirect();
 }
 
 function openMore() {
@@ -962,16 +1094,31 @@ function openMore() {
 
 function closeMore(e) {
   if (e.target === document.getElementById('moreOverlay')) {
-    document.getElementById('moreOverlay').classList.remove('open');
+    closeMoreDirect();
+  }
+}
+
+function closeMoreDirect() {
+  document.getElementById('moreOverlay').classList.remove('open');
+  if (!customizeMode) {
+    pendingPanelId = null;
+    document.querySelectorAll('.more-item').forEach(b => b.classList.remove('drag-selected','drag-hint'));
   }
 }
 
 function navigateMore(id) {
-  document.getElementById('moreOverlay').classList.remove('open');
-  navItems.forEach(n => n.classList.remove('active'));
-  screens.forEach(s => s.classList.remove('active'));
-  document.getElementById('screen-' + id).classList.add('active');
+  navigate(id, null);
 }
+
+// ── INIT ──
+renderNav();
+renderPanel();
+// Set oggi as active on load
+setTimeout(() => {
+  const oggiBtn = document.querySelector('#bottomNav .nav-item[data-id="oggi"]');
+  if (oggiBtn) oggiBtn.classList.add('active');
+  document.getElementById('screen-oggi') && document.getElementById('screen-oggi').classList.add('active');
+}, 0);
 
 // ── TABS ──
 function setTab(btn) {
