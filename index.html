@@ -24,7 +24,7 @@ lucide.createIcons({icons});\``);if(typeof document>"u")throw new Error("`create
 //# sourceMappingURL=lucide.min.js.map
 </script>
 <style>
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:manipulation;}
 :root{
   --bg:#0F1117;--surface:#1A1D27;--surface-2:#21253A;--surface-3:#262B3E;
   --border:#2A2D3A;--border-light:#353847;
@@ -1085,14 +1085,16 @@ function selectPanelItem(id, btn) {
 function addLongPress(el, id) {
   let timer;
   el.addEventListener('touchstart', e => {
+    e.preventDefault(); // prevent iOS text selection on long press
     timer = setTimeout(() => {
       navigator.vibrate && navigator.vibrate(30);
       if (!customizeMode) { customizeMode = true; renderNav(); }
       selectPanelItem(id, el);
     }, 500);
-  }, {passive:true});
+  }, {passive:false});
   el.addEventListener('touchend', () => clearTimeout(timer), {passive:true});
   el.addEventListener('touchmove', () => clearTimeout(timer), {passive:true});
+  el.addEventListener('contextmenu', e => e.preventDefault());
 }
 
 // ── TOAST ──
